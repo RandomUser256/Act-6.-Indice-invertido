@@ -1,0 +1,19 @@
+[project]
+name = "act-6-indice-invertido"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+authors = [
+    { name = "Máximo Magallanes", email = "78713126+RandomUser256@users.noreply.github.com" }
+]
+requires-python = ">=3.14"
+dependencies = [
+    "scrapy>=2.19.0",
+]
+
+[project.scripts]
+act-6-indice-invertido = "act_6_indice_invertido:main"
+
+[build-system]
+requires = ["uv_build>=0.12.2,<0.13.0"]
+build-backend = "uv_build"
