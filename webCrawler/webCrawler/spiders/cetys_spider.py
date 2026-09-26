@@ -1,43 +1,60 @@
+from fileinput import filename
 from pathlib import Path
 
 import scrapy
 
 class CetysSpider(scrapy.Spider):
     name = "cetys"
-
-    custom_settings = {
-        'DEPTH_LIMIT': 100,
-        'USER_AGENT' : "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
-    }
-
-    # Replace with the actual university domain
-    allowed_domains = ['cetys.mx'] 
-    start_urls = ['http://www.cetys.mx/']
+    allowed_domains = ["cetys.mx"]
+    start_urls = ["https://www.cetys.mx/"]
 
     def parse(self, response):
-        page = response.url.split("/")[-2]
-        filename = f"cetys-{page}.html"
+        # 1. Extract all href attributes within the main <header id="header"> tag
+        header_links = response.css("header#header a::attr(href)").getall()
+
+        # 2. Filter out anchor links ('#'), empty links, and javascript actions
+        valid_links = set()
+        for link in header_links:
+            clean_link = link.strip()
+            if (
+                clean_link
+                and not clean_link.startswith("#")
+                and not clean_link.startswith("javascript:")
+            ):
+                # Convert relative URLs to absolute URLs
+                absolute_url = response.urljoin(clean_link)
+                valid_links.add(absolute_url)
+
+        num_pages = 0
+
+        # 3. Iterate through links and yield requests to explore them
+        for idx, url in enumerate(sorted(valid_links), start=1):
+            if (num_pages >= 100):
+                break
+            page_id = f"page-{idx:03d}"
+            yield response.follow(url, callback=self.parse_header_page, 
+                cb_kwargs={
+                    "page_id": page_id,
+                }
+            )
+            num_pages = num_pages + 1
+
+    def parse_header_page(self, response, page_id):
+        # Process the crawled header pages here
+        self.logger.info(f"Crawled header page: {response.url}")
+
+        pageName = response.css('title::text').get()
+        filename = f'{page_id}.html'
+
+
         Path(filename).write_bytes(response.body)
 
-        # Menu bar links
-        menu_link = response.css('.menu-wrap li a::attr(href)').get()
-        
-        if menu_link:
-            absolute_url = response.urljoin(menu_link)
-            yield scrapy.Request(url=absolute_url, callback=self.parse)
-
-        # 2. (Optional) Recursively crawl other internal links if you want 
-        # to explore deeper than just the primary menu bar
-        '''
-        for href in response.css('a::attr(href)').getall():
-            absolute_url = response.urljoin(href)
-            
-            # Ensure links stay within the domain
-            if urlparse(absolute_url).netloc in self.allowed_domains:
-                yield scrapy.Request(url=absolute_url, callback=self.parse)
-                '''
-        # Yield data from the current page here
         yield {
-            'url': response.url,
-            'title': response.css('title::text').get()
+            "id": page_id,
+            "url": response.url,
+            "title": response.css("title::text").get("").strip(),
+            "meta_description": response.css(
+                'meta[name="description"]::attr(content)'
+            ).get(""),
+            "http_status": response.status,
         }
