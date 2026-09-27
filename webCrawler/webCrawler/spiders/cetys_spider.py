@@ -9,10 +9,10 @@ class CetysSpider(scrapy.Spider):
     start_urls = ["https://www.cetys.mx/"]
 
     def parse(self, response):
-        # 1. Extract all href attributes within the main <header id="header"> tag
+        # Extract href (link) attributes within the main navigation bar located in page header
         header_links = response.css("header#header a::attr(href)").getall()
 
-        # 2. Filter out anchor links ('#'), empty links, and javascript actions
+        # Filter out anchor links ('#'), empty links or other unwanted links
         valid_links = set()
         for link in header_links:
             clean_link = link.strip()
@@ -25,9 +25,10 @@ class CetysSpider(scrapy.Spider):
                 absolute_url = response.urljoin(clean_link)
                 valid_links.add(absolute_url)
 
+        # Counter for max number of 100 pages
         num_pages = 0
 
-        # 3. Iterate through links and yield requests to explore them
+        # Iterate through links and yield requests to explore them
         for idx, url in enumerate(sorted(valid_links), start=1):
             if (num_pages >= 100):
                 break
@@ -40,15 +41,16 @@ class CetysSpider(scrapy.Spider):
             num_pages = num_pages + 1
 
     def parse_header_page(self, response, page_id):
-        # Process the crawled header pages here
+        # Process the crawled header 
         self.logger.info(f"Crawled header page: {response.url}")
 
         pageName = response.css('title::text').get()
         filename = f'{page_id}.html'
 
-
+        # Save HTML file for later text processing
         Path(filename).write_bytes(response.body)
 
+        # Information to be saved to JSON registry
         yield {
             "id": page_id,
             "url": response.url,
